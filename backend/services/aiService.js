@@ -43,20 +43,7 @@ async callGemini(messages, options = {}) {
           responseMimeType: 'application/json',
         },
       });
-
-      // const systemMessage = messages.find(m => m.role === 'system');
-      // const userMessages  = messages.filter(m => m.role !== 'system');
-
-      // const chat = model.startChat({
-      //   systemInstruction: systemMessage
-      //     ? { parts: [{ text: systemMessage.content }] }
-      //     : undefined,
-      //   history: [],
-      // });
-
-      // const lastUserMessage = userMessages[userMessages.length - 1];
-      // const result = await chat.sendMessage(lastUserMessage.content);
-      // return result.response.text();
+ 
       const prompt = messages
   .map(m => `${m.role.toUpperCase()}:\n${m.content}`)
   .join("\n\n");
@@ -117,97 +104,51 @@ return response.text();
     return this.callOpenAI(messages, options);
   }
 
-  async generateQuestions({ company, jobRole, difficulty, count = 5 }) {
+// backend/services/aiService.js — replace generateQuestions method
 
-    
-    if (env.USE_AI_MOCK === 'true') {
-      return [
-        {
-          text:       `At ${company}, how would you design a distributed cache system?`,
-          type:       'system-design',
-          category:   'Scalability',
-          orderIndex: 0,
-        },
-        {
-          text:       'Explain the difference between HashMap and TreeMap. When would you use each?',
-          type:       'technical',
-          category:   'Data Structures',
-          orderIndex: 1,
-        },
-        {
-          text:       'Tell me about a time you had to meet a tight deadline. How did you handle it?',
-          type:       'behavioral',
-          category:   'Leadership',
-          orderIndex: 2,
-        },
-        {
-          text:       `Design a real-time notification system for ${company} with millions of users.`,
-          type:       'system-design',
-          category:   'System Design',
-          orderIndex: 3,
-        },
-        {
-          text:       'What is the time complexity of quicksort? Explain best, average, and worst cases.',
-          type:       'technical',
-          category:   'Algorithms',
-          orderIndex: 4,
-        },
-      ].slice(0, count);
-    }
+async generateQuestions({ company, jobRole, difficulty, count = 5 }) {
 
-    // REAL AI CALL
-    const messages = promptBuilder.buildQuestionsPrompt({
-      company,
-      jobRole,
-      difficulty,
-      count,
-    });
-
-    const raw = await this.call(messages, {
-      temperature: 0.8,
-      max_tokens:  3000,
-    });
-   console.log("RAW AI RESPONSE:");
-console.log(raw);
-    return responseParser.parseQuestions(raw);
-  }
-  // services/aiService.js — replace mock evaluateAnswer block
-
-async evaluateAnswer({ question, answer, company, jobRole }) {
+  // MOCK MODE
   if (env.USE_AI_MOCK === 'true') {
-    /*
-     * Mock evaluation with realistic 4-dimension scores.
-     * Score varies by answer length to simulate real evaluation.
-     */
-    const len = answer ? answer.length : 0;
-
-    const technicalScore     = len < 30  ? 3.0 : len < 100 ? 5.5 : len < 300 ? 7.0 : 8.5;
-    const communicationScore = len < 30  ? 2.5 : len < 100 ? 5.0 : len < 300 ? 7.5 : 8.0;
-    const depthScore         = len < 30  ? 2.0 : len < 100 ? 4.5 : len < 300 ? 6.5 : 8.0;
-    const overallScore = Math.round(
-      (technicalScore * 0.4 + communicationScore * 0.3 + depthScore * 0.3) * 10
-    ) / 10;
-
-    return {
-      technicalScore,
-      communicationScore,
-      depthScore,
-      overallScore,
-      feedback:        `Your answer demonstrates ${len > 100 ? 'good' : 'basic'} understanding of the concept. ${len > 200 ? 'The explanation was detailed and well-structured.' : 'The answer could benefit from more detail.'}`,
-      strengths:       len > 100
-        ? 'Good use of relevant terminology and structured explanation. You addressed the core concept clearly.'
-        : 'You identified the relevant topic area and provided a starting point.',
-      improvements:   'Consider discussing time and space complexity, edge cases, and alternative approaches. Adding a concrete example would strengthen your answer significantly.',
-      suggestedAnswer: `An ideal answer would: (1) define the core concept, (2) explain the mechanism with an example, (3) discuss trade-offs and when to use it, (4) mention edge cases and complexity.`,
-    };
+    return [
+      { text: `At ${company}, how would you design a distributed cache?`, type: 'system-design', category: 'Scalability',     orderIndex: 0 },
+      { text: 'Explain HashMap vs TreeMap. When would you use each?',     type: 'technical',     category: 'Data Structures', orderIndex: 1 },
+      { text: 'Tell me about a time you had to meet a tight deadline.',    type: 'behavioral',    category: 'Leadership',      orderIndex: 2 },
+      { text: `Design a real-time notification system for ${company}.`,   type: 'system-design', category: 'System Design',   orderIndex: 3 },
+      { text: 'What is the time complexity of quicksort?',                type: 'technical',     category: 'Algorithms',      orderIndex: 4 },
+    ].slice(0, count);
   }
 
-  // Real AI call
-  const messages = promptBuilder.buildEvaluationPrompt({
-    question, answer, company, jobRole,
+  // RAG MODE — retrieve real company questions as context
+  let ragContext = '';
+  if (env.USE_RAG === 'true') {
+    try {
+      console.log(`🔍  RAG: retrieving context for ${company} ${difficulty}...`);
+      const ragService    = require('../rag/ragService');
+      const retrieved     = await ragService.retrieveContext({
+        company, role: jobRole, difficulty, count: 10,
+      });
+
+      if (retrieved.length > 0) {
+        ragContext = ragService.buildContextString(retrieved);
+        console.log(`✅  RAG: retrieved ${retrieved.length} relevant questions`);
+      } else {
+        console.log(`ℹ️   RAG: no matches found — using pure AI generation`);
+      }
+    } catch (ragError) {
+      // RAG failure is non-fatal — fall back to pure AI generation
+      console.warn(`⚠️   RAG failed: ${ragError.message} — continuing without context`);
+    }
+  }
+
+ 
+  const messages = promptBuilder.buildQuestionsPrompt({
+    company, jobRole, difficulty, count,
+    ragContext,   // ← pass context to prompt builder
   });
-  const raw = await this.call(messages, { temperature: 0.3, max_tokens: 1200 });
-  return responseParser.parseEvaluation(raw);
+
+  const raw = await this.call(messages, { temperature: 0.8, max_tokens: 2000 });
+  return responseParser.parseQuestions(raw);
 }
 }
 

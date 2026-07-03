@@ -67,62 +67,68 @@ const DIFFICULTY_CONFIG = {
 };
 
 const promptBuilder = {
-  buildQuestionsPrompt({ company, jobRole, difficulty, count = 5 }) {
-    const style = getCompanyStyle(company);
-    const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.medium;
+  // promptBuilder.js — update buildQuestionsPrompt
+// Add ragContext parameter and inject it into the system prompt
 
-    const technicalCount = Math.ceil(count * 0.5);
-    const behavioralCount = Math.floor(count * 0.3);
-    const systemDesignCount = count - technicalCount - behavioralCount;
+buildQuestionsPrompt({ company, jobRole, difficulty, count = 5, ragContext = '' }) {
+  const style  = getCompanyStyle(company);
+  const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.medium;
 
-    const systemPrompt = `You are a senior ${jobRole} interviewer at ${company} with 10+ years of hiring experience.
+  const technicalCount    = Math.ceil(count * 0.5);
+  const behavioralCount   = Math.floor(count * 0.3);
+  const systemDesignCount = count - technicalCount - behavioralCount;
+
+  /*
+   * RAG CONTEXT INJECTION:
+   * When ragContext is provided, we inject real interview questions
+   * as examples BEFORE the generation instruction.
+   * This grounds the AI in actual company interview patterns.
+   *
+   * Without RAG: AI generates from training data (may be outdated)
+   * With RAG:    AI generates informed by real recent questions
+   */
+  const ragSection = ragContext
+    ? `\nREAL ${company.toUpperCase()} INTERVIEW QUESTIONS (use as style reference):
+${ragContext}
+
+Generate NEW questions INSPIRED by the above examples — same difficulty,
+same style, same company culture. Do NOT copy them directly.\n`
+    : '';
+
+  const systemPrompt = `You are a senior ${jobRole} interviewer at ${company} with 10+ years of hiring experience.
 
 COMPANY CONTEXT:
 ${company} interviews focus on: ${style.focus}
 Desired candidate traits: ${style.traits}
-Interview format at ${company}: ${style.formats}
-
+${ragSection}
 DIFFICULTY: ${config.label}
 Target experience: ${config.experience}
-Instruction: ${config.instruction}
-For coding questions, use: ${config.codeDepth}
-For design questions, use: ${config.designDepth}
+${config.instruction}
 
-TASK:
-Generate exactly ${count} interview questions with this distribution:
-- ${technicalCount} technical questions (algorithms, data structures, coding, ${jobRole}-specific concepts)
-- ${behavioralCount} behavioral questions (STAR format, leadership, teamwork, conflict resolution)
-- ${systemDesignCount} system design questions (architecture, scalability, trade-offs)
+TASK: Generate exactly ${count} interview questions:
+- ${technicalCount} technical questions
+- ${behavioralCount} behavioral questions
+- ${systemDesignCount} system design questions
 
-STRICT OUTPUT RULES:
-1. Return ONLY a valid JSON object — no markdown, no explanation, no preamble
-2. Each question must follow the schema below exactly
-3. orderIndex starts at 0 and increments by 1
-4. Technical questions must be specific to ${jobRole} responsibilities
-5. Behavioral questions MUST start with "Tell me about a time..." or "Describe a situation..."
-6. System design questions MUST mention scale (users, requests per second, or data volume)
-7. Do NOT number the questions inside the text field
-8. Questions must reflect ${company}'s actual interview culture
-
-JSON SCHEMA (return exactly this structure):
+You MUST respond with ONLY a valid JSON object. No markdown, no explanation.
 {
   "questions": [
     {
-      "text": "The complete question text exactly as an interviewer would ask it",
-      "type": "technical",
-      "category": "Short category e.g. Arrays, Trees, Leadership, Scalability",
+      "text": "The full question text",
+      "type": "technical" | "behavioral" | "system-design",
+      "category": "Short category label",
       "orderIndex": 0
     }
   ]
 }`;
 
-    const userPrompt = `Generate ${count} ${difficulty} difficulty ${jobRole} interview questions for ${company}. Return only the JSON.`;
+  const userPrompt = `Generate ${count} ${difficulty} ${jobRole} interview questions for ${company}. Return only JSON.`;
 
-    return [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-  },
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'user',   content: userPrompt   },
+  ];
+},
 buildEvaluationPrompt({ question, answer, company, jobRole }) {
   const style = getCompanyStyle(company);
 

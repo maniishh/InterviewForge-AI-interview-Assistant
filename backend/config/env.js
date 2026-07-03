@@ -37,6 +37,10 @@ const env = {
   AI_PROVIDER:    getEnv('AI_PROVIDER',    { defaultValue: 'openai' }),
   OPENAI_API_KEY: getEnv('OPENAI_API_KEY', { required: false, defaultValue: '' }),
   GEMINI_API_KEY: getEnv('GEMINI_API_KEY', { required: false, defaultValue: '' }),
+ 
+PINECONE_API_KEY:   getEnv('PINECONE_API_KEY',   { required: false, defaultValue: '' }),
+PINECONE_INDEX_NAME:getEnv('PINECONE_INDEX_NAME', { required: false, defaultValue: 'interviewforge-questions' }),
+USE_RAG:            getEnv('USE_RAG',             { required: false, defaultValue: 'false' }),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: Number(getEnv('RATE_LIMIT_WINDOW_MS', { defaultValue: '900000' })),
