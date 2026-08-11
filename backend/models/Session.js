@@ -3,10 +3,12 @@
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
-  text: { type: String, required: true, trim: true },
-  type: { type: String, enum: ['technical', 'behavioral', 'system-design'], required: true },
-  category: { type: String, trim: true },
-  orderIndex: { type: Number, required: true },
+  text:             { type: String, required: true, trim: true },
+  type:             { type: String, enum: ['technical', 'behavioral', 'system-design'], required: true },
+  category:         { type: String, trim: true },
+  orderIndex:       { type: Number, required: true },
+  difficulty:       { type: String, enum: ['easy', 'medium', 'hard'] },
+  isCodingQuestion: { type: Boolean, default: false },
 }, { _id: false });
 
 const answerSchema = new mongoose.Schema({
@@ -68,6 +70,17 @@ const evaluationSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+// ── CODE SUBMISSION SUBDOCUMENT ─────────────────────────────────────────────
+const codeSubmissionSchema = new mongoose.Schema({
+  questionIndex: { type: Number, required: true },
+  language:      { type: String, required: true },
+  code:          { type: String, required: true },
+  testsPassed:   { type: Number },
+  testsTotal:    { type: Number },
+  evaluation:    evaluationSchema,
+  submittedAt:   { type: Date, default: Date.now },
+}, { _id: false });
+
 const sessionSchema = new mongoose.Schema(
   {
     userId: {
@@ -116,7 +129,35 @@ questionTypeCount: {
   systemDesign: { type: Number, default: 0 },
 },
 
-    startedAt: { type: Date, default: Date.now },
+    // ── ADAPTIVE ENGINE FIELDS ───────────────────────────────────────────────
+    mode: {
+      type:    String,
+      enum:    ['static', 'adaptive'],
+      default: 'static',
+    },
+
+    totalQuestions: {
+      type:    Number,
+      default: 5,
+    },
+
+    currentDifficulty: {
+      type:    String,
+      enum:    ['easy', 'medium', 'hard'],
+      default: 'medium',
+    },
+
+    difficultyHistory: [{
+      questionIndex: { type: Number },
+      from:          { type: String },
+      to:            { type: String },
+      reason:        { type: String },
+    }],
+
+    // ── CODING SANDBOX ───────────────────────────────────────────────────────
+    codeSubmissions: [codeSubmissionSchema],
+
+    startedAt:  { type: Date, default: Date.now },
     completedAt: { type: Date },
   },
 
