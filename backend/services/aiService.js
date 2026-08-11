@@ -145,11 +145,38 @@ async evaluateAnswer({
   jobRole,
 }) {
   
+  let referenceContext = '';
+  if (env.USE_RAG === 'true') {
+    try {
+      console.log(`🔍  RAG: retrieving evaluation context for ${company}...`);
+      const ragService = require('../rag/ragService');
+      const retrieved = await ragService.retrieveContext({
+        company,
+        role: jobRole,
+        type: question.type,
+        count: 2,
+        queryOverride: question.text,
+      });
+
+      if (retrieved.length > 0) {
+        referenceContext = retrieved.map(q => 
+          `Question: ${q.questionText}\nReference Answer: ${q.sampleAnswer}`
+        ).join('\n\n');
+        console.log(`✅  RAG: retrieved ${retrieved.length} relevant context(s) for evaluation`);
+      } else {
+        console.log(`ℹ️   RAG: no matches found — falling back to general evaluation`);
+      }
+    } catch (ragError) {
+      console.warn(`⚠️   RAG evaluation failed: ${ragError.message} — continuing without context`);
+    }
+  }
+
   const messages = promptBuilder.buildEvaluationPrompt({
     question,
     answer,
     company,
     jobRole,
+    referenceContext,
   });
  
   const raw = await this.call(messages, {

@@ -129,7 +129,7 @@ You MUST respond with ONLY a valid JSON object. No markdown, no explanation.
     { role: 'user',   content: userPrompt   },
   ];
 },
-buildEvaluationPrompt({ question, answer, company, jobRole }) {
+buildEvaluationPrompt({ question, answer, company, jobRole, referenceContext }) {
   const style = getCompanyStyle(company);
 
   const rubrics = {
@@ -214,6 +214,10 @@ DEPTH (0–10):
 
   const rubric = rubrics[question.type] || rubrics.technical;
 
+  const groundingSection = referenceContext
+    ? `\nREFERENCE CONTEXT (Use this to evaluate the answer accurately):\n${referenceContext}\n\nIMPORTANT: Do NOT expose or copy this reference context directly in your feedback. Use it only as a grading rubric.`
+    : `\nNo specific company context provided. Evaluate based on general software engineering principles.`;
+
   const systemPrompt = `You are a senior ${jobRole} at ${company} conducting a technical interview evaluation.
 
 QUESTION (${question.type.toUpperCase()} — ${question.category}):
@@ -232,6 +236,7 @@ Round to 1 decimal place.
 COMPANY CONTEXT:
 At ${company}, interviewers value: ${style.traits}
 Keep this in mind when evaluating cultural fit signals in the answer.
+${groundingSection}
 
 FEEDBACK GUIDELINES:
 - feedback: 2–3 sentences. Reference the candidate's specific words.

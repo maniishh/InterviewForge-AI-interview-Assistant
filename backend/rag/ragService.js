@@ -9,9 +9,9 @@ const RagQuestion    = require('./ragQuestionStore');
 
 const ragService = {
  
-  async retrieveContext({ company, role, difficulty, type = 'all', count = 10 }) {
+  async retrieveContext({ company, role, difficulty, type = 'all', count = 10, queryOverride }) {
  
-    const queryText = [
+    const queryText = queryOverride || [
       `Company: ${company.toLowerCase()}`,
       `Role: ${role || 'software-engineer'}`,
       `Interview type: ${type === 'all' ? 'technical behavioral system-design' : type}`,
