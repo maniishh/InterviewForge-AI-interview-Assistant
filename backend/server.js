@@ -29,14 +29,21 @@ connectDB();
  
 app.use(helmet());
 
-const allowedOrigins = env.IS_PRODUCTION
-  ? [
-      'https://interview-forge-omega.vercel.app',  
-    ]
-  : ['http://localhost:5173', 'http://localhost:3000'];
+const allowedOrigins = Array.from(new Set([
+  'http://localhost:5173',
+  'http://localhost:3000',
+  env.CLIENT_URL,
+].filter(Boolean)));
+
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS error: Origin ${origin} not allowed`));
+    }
+  },
+  credentials: true,
 }));
  
 app.use(express.json({ limit: '10kb' }));

@@ -10,7 +10,6 @@ const AppError       = require('../utils/AppError');
 
 class AIService {
 
-  // ─── SECTION 1: CONSTRUCTOR ───────────────────────────────────────────────
   constructor() {
     if (env.AI_PROVIDER === 'gemini') {
       this.gemini   = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -23,64 +22,52 @@ class AIService {
       throw new Error(`Unknown AI_PROVIDER: ${env.AI_PROVIDER}`);
     }
     console.log(`✅  AI Service initialised with provider: ${this.provider}`);
-    console.log("Provider:", env.AI_PROVIDER);
-console.log("Key exists:", !!env.GEMINI_API_KEY);
-console.log("Key prefix:", env.GEMINI_API_KEY?.slice(0,6));
   }
 
+  async callGemini(messages, options = {}) {
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const model = this.gemini.getGenerativeModel({
+          model: 'gemini-2.5-flash',
+          generationConfig: {
+            temperature:      options.temperature ?? 0.7,
+            maxOutputTokens:  options.max_tokens  ?? 2000,
+            responseMimeType: 'application/json',
+          },
+        });
 
+        const prompt = messages
+          .map(m => `${m.role.toUpperCase()}:\n${m.content}`)
+          .join("\n\n");
 
-async callGemini(messages, options = {}) {
-  const maxRetries = 3;
-  const delays     = [5000, 15000, 30000]; 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const model = this.gemini.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          temperature:      options.temperature ?? 0.7,
-          maxOutputTokens:  options.max_tokens  ?? 2000,
-          responseMimeType: 'application/json',
-        },
-      });
- 
-      const prompt = messages
-  .map(m => `${m.role.toUpperCase()}:\n${m.content}`)
-  .join("\n\n");
+        const result   = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
 
-const result = await model.generateContent(prompt);
-const response = await result.response;
-return response.text();
+      } catch (error) {
+        const isRateLimit = error.status === 429 ||
+                            error.message?.includes('429') ||
+                            error.message?.includes('quota') ||
+                            error.message?.includes('rate');
 
-    } catch (error) {
-  console.log("===== GEMINI ERROR =====");
-  console.log({
-    status: error.status,
-    message: error.message,
-    error
-  });
+        if (isRateLimit && attempt < maxRetries - 1) {
+          const delayMs = Math.min(1000 * Math.pow(2, attempt) + Math.floor(Math.random() * 500), 5000);
+          console.warn(`⚠️  Gemini rate limit hit. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, delayMs));
+          continue;
+        }
 
-  const isRateLimit = error.status === 429 ||
-                      error.message?.includes('429') ||
-                      error.message?.includes('quota') ||
-                      error.message?.includes('rate');
+        if (isRateLimit) {
+          throw AppError.tooMany('AI rate limit reached. Please wait 1 minute and try again.');
+        }
 
-  if (isRateLimit && attempt < maxRetries - 1) {
-    console.log(`Gemini rate limit hit. Retrying in ${delays[attempt]/1000}s...`);
-    await new Promise(r => setTimeout(r, delays[attempt]));
-    continue;
+        if (error.status === 400) throw AppError.badRequest(`Gemini error: ${error.message}`);
+        if (error.status === 403) throw AppError.unauthorized('Invalid Gemini API key.');
+        throw AppError.internal(`Gemini error: ${error.message}`);
+      }
+    }
   }
-
-  if (isRateLimit) {
-    throw AppError.tooMany('AI rate limit reached. Please wait 1 minute and try again.');
-  }
-
-  if (error.status === 400) throw AppError.badRequest(`Gemini error: ${error.message}`);
-  if (error.status === 403) throw AppError.unauthorized('Invalid Gemini API key.');
-  throw AppError.internal(`Gemini error: ${error.message}`);
-}
-  }
-}
 
   async callOpenAI(messages, options = {}) {
     try {
@@ -149,6 +136,27 @@ async generateQuestions({ company, jobRole, difficulty, count = 5 }) {
 
   const raw = await this.call(messages, { temperature: 0.8, max_tokens: 2000 });
   return responseParser.parseQuestions(raw);
+}
+ 
+async evaluateAnswer({
+  question,
+  answer,
+  company,
+  jobRole,
+}) {
+  
+  const messages = promptBuilder.buildEvaluationPrompt({
+    question,
+    answer,
+    company,
+    jobRole,
+  });
+ 
+  const raw = await this.call(messages, {
+    temperature: 0.2,
+    max_tokens: 2000,
+  });
+  return responseParser.parseEvaluation(raw);
 }
 }
 

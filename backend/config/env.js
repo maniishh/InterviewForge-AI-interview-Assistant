@@ -25,6 +25,7 @@ const env = {
   // Server
   PORT:         getEnv('PORT',         { defaultValue: '5000' }),
   NODE_ENV:     getEnv('NODE_ENV',     { defaultValue: 'development' }),
+  CLIENT_URL:   getEnv('CLIENT_URL',   { required: false, defaultValue: 'https://interview-forge-omega.vercel.app' }),
 
   // Database
   MONGODB_URI:  getEnv('MONGODB_URI'),

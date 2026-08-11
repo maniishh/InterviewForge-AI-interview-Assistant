@@ -40,10 +40,14 @@ const ragService = {
 
     // ── Step 4: Fetch full content from MongoDB ────────────────────────────
     const pineconeIds  = matches.map(m => m.id);
-    const questions    = await RagQuestion
-      .find({ pineconeId: { $in: pineconeIds } })
-      .sort({ frequency: -1 })
-      .limit(count);
+    const docs         = await RagQuestion.find({ pineconeId: { $in: pineconeIds } });
+
+    // Preserve Pinecone vector similarity ranking order
+    const docMap       = new Map(docs.map(d => [d.pineconeId, d]));
+    const questions    = pineconeIds
+      .map(id => docMap.get(id))
+      .filter(Boolean)
+      .slice(0, count);
 
     // Track retrieval for analytics
     await RagQuestion.updateMany(
