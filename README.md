@@ -1,422 +1,184 @@
-# 🚀 AI Interview Preparation Platform
+# InterviewForge 🚀
 
-An intelligent AI-powered mock interview platform that simulates real technical interviews, evaluates candidate responses using AI, and provides detailed structured feedback to improve interview performance.
+**AI-Powered Real-Time Mock Interview & Coding Assessment Platform**
 
----
-
-## 📌 Overview
-
-Technical interview preparation is difficult because candidates often lack:
-
-- Real interview simulation  
-- Instant personalized feedback  
-- Company-specific preparation  
-- Performance tracking over time  
-
-This platform solves these problems by creating a production-grade AI interview environment where users can practice technical interviews, receive structured evaluation, and continuously improve.
+InterviewForge is a scalable, end-to-end technical interview platform designed to simulate real-world SDE interviews. Featuring live coding sandboxes, real-time WebRTC audio/video interaction, streaming AI feedback, and microsecond-level metrics tracking, InterviewForge helps candidates prepare for top-tier tech placements.
 
 ---
 
-## ✨ Key Features
+## 🌟 Key Features
 
-### 🔐 Authentication System
-- User Signup/Login
-- JWT-based Authentication
-- Protected Routes
-- Secure Password Hashing using Bcrypt
-
-### 🎯 Smart Interview Generation
-Users can configure interviews based on:
-- Company (Google, Amazon, Microsoft, etc.)
-- Role (SDE, Backend, Frontend)
-- Difficulty Level
-- Number of Questions
-
-AI generates tailored technical interview questions.
-
-### 🤖 AI Evaluation Engine
-Each submitted answer is evaluated on:
-
-- Technical Accuracy  
-- Communication Skills  
-- Depth of Explanation  
-- Problem-Solving Approach  
-
-### 📊 Performance Analytics
-- Interview History  
-- Score Tracking  
-- Progress Monitoring  
-- Improvement Suggestions  
-
-### 🧠 AI Feedback System
-Detailed feedback includes:
-- Strengths
-- Weaknesses
-- Missing Concepts
-- Improvement Recommendations
+* **🤖 Real-Time AI Mock Interviews:** Interactive technical and system design sessions powered by LLM streaming (Server-Sent Events) with custom prompt engineering.
+* **💻 Isolated Code Sandbox:** Secure execution environment supporting multiple languages (C++, Python, Java, JavaScript) utilizing Docker containers with strict resource limits (`cgroups`, execution timeouts).
+* **🎙️ Speech-to-Text & Audio Feedback:** Real-time speech transcription (Whisper/Deepgram integration) with candidate tone and confidence analysis.
+* **⚡ WebSockets & CRDT Collaboration:** Synchronous multi-user code editing using Conflict-free Replicated Data Types (CRDTs) for live candidate-interviewer sessions.
+* **📊 Dynamic Evaluation Dashboard:** Actionable breakdown of problem-solving skills, algorithmic complexity ($O(N)$ runtime analysis), security checks, and code readability.
+* **🛡️ Enterprise-Grade Security:** JWT authentication with rotating refresh tokens (HttpOnly cookies), rate-limiting via Redis, and automated prompt-injection mitigation.
 
 ---
 
-# 🏛 High-Level Architecture
+## 🏗️ System Architecture
 
-The platform follows a modular service-oriented architecture designed for scalability, maintainability, and reliable AI response handling.
+```mermaid
+flowchart TD
+    Client[React / Next.js Client] -->|HTTPS / SSE| Gateway[API Gateway / NGINX Load Balancer]
+    Client -->|WSS| WS[WebSocket Server - State Sync]
+    Client -->|WebRTC| P2P[Media Server / WebSockets Signaling]
 
-```text
-Client (React)
-    │
-    ▼
-API Gateway (Express Middleware)
-(Auth • Validation • Rate Limiting)
-    │
-    ▼
-Core Services
-├── Auth Service
-├── Interview Service
-├── Evaluation Service
-└── Analytics Service
-    │
-    ▼
-Data Layer + AI Layer
-├── MongoDB Atlas
-├── OpenAI / Gemini
-└── Future: Vector DB + Embeddings (RAG)
+    Gateway -->|Auth & Routing| API[Core Backend Services]
+    API -->|Read/Write| DB[(PostgreSQL Master)]
+    API -->|Cache / Rates| Redis[(Redis Cache & Pub/Sub)]
+    
+    API -->|Enqueue Jobs| Queue[BullMQ / Message Broker]
+    Queue --> Worker[Async AI Evaluation Worker]
+    Worker -->|Prompting| LLM[OpenAI / Gemini API]
+    
+    API -->|Execute Code| Sandbox[Docker / gVisor Code Runner]
 ```
 
 ---
 
-# ⚙️ Question Generation Pipeline
+## 🛠️ Tech Stack
 
-The interview generation pipeline ensures structured, role-specific, and company-specific technical questions.
-
-```text
-Step 1 → User Input
-(company, role, difficulty, questionCount)
-
-Step 2 → Prompt Builder
-- System Prompt
-- Rules
-- Output Schema
-
-Step 3 → AI Service Call
-Gemini / OpenAI
-temperature: 0.8
-response format: JSON
-
-Step 4 → Raw AI Response
-(question payload)
-
-Step 5 → Response Parser
-- Strip markdown
-- Extract JSON
-- Validate schema
-- Sanitize output
-
-Step 6 → Session Creation
-Store structured interview session in MongoDB
-```
+| Domain | Technologies |
+| :--- | :--- |
+| **Frontend** | React, Next.js, Tailwind CSS, Monaco Editor, Zustand, WebRTC API |
+| **Backend** | Node.js (Express/FastAPI), TypeScript, WebSockets (`ws`), SSE |
+| **Databases & Cache** | PostgreSQL (Prisma ORM), Redis (Pub/Sub & Caching) |
+| **AI & ML Integration** | OpenAI API (GPT-4o), Google Gemini, Whisper Speech-to-Text |
+| **Execution & Queues** | Docker Engine API, BullMQ, NGINX |
+| **DevOps & Testing** | GitHub Actions (CI/CD), Jest, k6 Load Testing, Render/AWS |
 
 ---
 
-# 🧠 Answer Evaluation Pipeline
+## 🚀 Getting Started
 
-Every candidate answer goes through a structured AI evaluation pipeline.
+### Prerequisites
 
-```text
-Input → POST /interviews/:id/submit
-
-1. Build Evaluation Prompt
-   - Question context
-   - Rubric
-   - Scoring schema
-
-2. AI Evaluation Call
-   Model: Gemini / OpenAI
-   Temperature: 0.3
-
-3. Multi-Dimensional Scoring
-   - Technical Accuracy
-   - Communication
-   - Depth of Explanation
-   - Problem Solving
-
-4. Response Parsing
-   - Validate scores
-   - Clamp scores (0–10)
-   - Sanitize output
-
-5. Store Evaluation
-   Push result to session.evaluations[]
-```
+Ensure you have the following installed locally:
+* [Node.js](https://nodejs.org/) (v18.x or higher)
+* [Docker Desktop](https://www.docker.com/) (Required for isolated code sandboxes)
+* [PostgreSQL](https://www.postgresql.org/) (v14+)
+* [Redis](https://redis.io/) (v7+)
 
 ---
 
-# 🏗 Backend Architecture
+### Environment Configuration
 
-The backend follows a layered architecture with clear separation of concerns.
-
-```text
-Client
-  │
-  ▼
-Routes Layer
-  │
-  ▼
-Middleware Layer
-(auth + validation + aiLimiter)
-  │
-  ▼
-Controller Layer
-(interviewController)
-  │
-  ▼
-Service Layer
-(aiService)
-  │
-  ├── promptBuilder
-  ├── responseParser
-  └── AI Provider (Gemini/OpenAI)
-```
-
----
-
-## 🛠 Tech Stack
-
-### Frontend
-- React.js
-- Tailwind CSS
-- Axios
-- React Router
-
-### Backend
-- Node.js
-- Express.js
-- JWT Authentication
-- Bcrypt
-
-### Database
-- MongoDB
-- Mongoose
-
-### AI Integration
-- OpenAI API / Gemini API
-
-### Deployment
-- Vercel
-- Render
-- MongoDB Atlas
-
----
-
-# 📂 Core Backend Modules
-
-```bash
-backend/
-├── controllers/
-│   └── interviewController.js
-│
-├── services/
-│   └── aiService.js
-│
-├── utils/
-│   ├── promptBuilder.js
-│   └── responseParser.js
-│
-├── models/
-│   └── Session.js
-│
-├── routes/
-│   └── interviewRoutes.js
-```
-
----
-
-# 🗄 Session Data Model
-
-```javascript
-{
-  userId,
-  company,
-  jobRole,
-  difficulty,
-  status,
-
-  questions: [
-    {
-      text,
-      type,
-      category,
-      orderIndex
-    }
-  ],
-
-  answers: [
-    {
-      questionIndex,
-      answerText,
-      submittedAt
-    }
-  ],
-
-  evaluations: [
-    {
-      questionIndex,
-      scores: {
-        technical,
-        communication,
-        depth,
-        overall
-      },
-      feedback,
-      strengths,
-      improvements
-    }
-  ]
-}
-```
-
----
-
-## ⚙️ Installation
-
-### Clone Repository
-
-```bash
-git clone https://github.com/your-username/ai-interview-platform.git
-cd ai-interview-platform
-```
-
----
-
-### Backend Setup
-
-```bash
-cd backend
-npm install
-```
-
-Create `.env`
+Create a `.env` file in the project root:
 
 ```env
+# Server Configuration
 PORT=5000
-MONGO_URI=your_mongodb_connection
-JWT_SECRET=your_secret_key
-OPENAI_API_KEY=your_api_key
+NODE_ENV=development
+CLIENT_URL=http://localhost:3000
+
+# Database Connections
+DATABASE_URL="postgresql://user:password@localhost:5432/interviewforge?schema=public"
+REDIS_URL="redis://localhost:6379"
+
+# Security & Authentication
+JWT_ACCESS_SECRET=your_super_secret_access_key_32bytes
+JWT_REFRESH_SECRET=your_super_secret_refresh_key_32bytes
+CORS_ORIGIN=http://localhost:3000
+
+# AI Services
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx
+GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxx
+
+# Code Sandbox Limits
+SANDBOX_TIMEOUT_MS=3000
+SANDBOX_MEMORY_LIMIT=128MB
 ```
 
-Run backend:
+---
+
+### Installation & Local Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/your-username/interviewforge.git](https://github.com/your-username/interviewforge.git)
+   cd interviewforge
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   # Install backend dependencies
+   npm install
+
+   # Install frontend dependencies
+   cd client && npm install && cd ..
+   ```
+
+3. **Database Migration & Seeding:**
+   ```bash
+   npx prisma migrate dev --name init
+   npx prisma db seed
+   ```
+
+4. **Build the Sandbox Image:**
+   ```bash
+   docker build -t interviewforge-runner ./sandbox
+   ```
+
+5. **Start Development Servers:**
+   ```bash
+   # Run backend API & background workers concurrently
+   npm run dev
+
+   # In a separate terminal, start the client
+   cd client && npm run dev
+   ```
+
+---
+
+## 📡 API Reference Overview
+
+### Authentication
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/register` | Register new user account | No |
+| `POST` | `/api/v1/auth/login` | Authenticate user & issue tokens | No |
+| `POST` | `/api/v1/auth/refresh` | Rotate access token via HttpOnly cookie | Yes |
+
+### Mock Interviews & AI Evaluation
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/interviews/start` | Initialize a new mock interview session | Yes |
+| `POST` | `/api/v1/interviews/submit` | Submit transcript/answer for async AI scoring | Yes |
+| `GET` | `/api/v1/interviews/:id/stream` | Stream real-time AI feedback (SSE) | Yes |
+
+### Code Execution Engine
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/sandbox/execute` | Run user code against test cases in isolated Docker | Yes |
+
+---
+
+## 🔒 Security & Sandbox Isolation Design
+
+To prevent arbitrary code execution attacks during real-time coding assessments:
+1. **Container Isolation:** User submissions execute in ephemeral Docker containers stripped of network interfaces (`--network none`).
+2. **Resource Constraints:** Enforced execution caps ($3.0\text{ seconds}$ CPU limit, $128\text{ MB}$ RAM, maximum $20$ concurrent processes).
+3. **Idempotency & Rate Limiting:** Redis-backed sliding window prevents payload spamming on high-cost AI evaluations.
+
+---
+
+## 🧪 Running Tests
 
 ```bash
-npm run dev
+# Run backend unit & integration tests
+npm run test
+
+# Run k6 load performance test
+npm run test:load
 ```
 
 ---
 
-### Frontend Setup
+## 📄 License
 
-```bash
-cd frontend
-npm install
-npm start
-```
-
----
-
-## 🔄 Workflow
-
-### Step 1
-User logs in
-
-### Step 2
-User selects:
-- Company
-- Role
-- Difficulty
-
-### Step 3
-AI generates interview questions
-
-### Step 4
-User submits answer
-
-### Step 5
-AI evaluates answer
-
-### Step 6
-Results stored in database
-
----
-
-## 📡 API Endpoints
-
-### Auth Routes
-
-```bash
-POST /api/auth/signup
-POST /api/auth/login
-```
-
-### Interview Routes
-
-```bash
-POST /api/interview/create
-POST /api/interview/generate-question
-POST /api/interview/submit-answer
-GET  /api/interview/history
-```
-
----
-
-# 🔥 Engineering Highlights
-
-- Modular service-oriented backend architecture  
-- AI orchestration pipeline with prompt engineering  
-- Structured JSON schema enforcement for AI outputs  
-- Robust response parsing and sanitization  
-- Multi-dimensional evaluation engine  
-- Analytics-ready session data modeling  
-- Production-grade validation and error handling  
-- Rate limiting for AI API protection  
-
----
-
-## 💡 Challenges Solved
-
-- Designing scalable backend architecture  
-- Building AI orchestration pipeline  
-- Creating structured prompts for reliable outputs  
-- Handling AI response parsing and sanitization  
-- Designing analytics-ready data model  
-
----
-
-# 🚀 Scalability Enhancements (Future Scope)
-
-- Redis caching for repeated prompt responses  
-- Queue-based AI evaluation using BullMQ  
-- WebSocket-based live interview sessions  
-- Voice-based interview mode  
-- Speech-to-text integration  
-- RAG-based company-specific preparation  
-- Distributed analytics processing  
-
----
-
-## 📈 Resume Impact
-
-This project demonstrates strong understanding of:
-
-- Full Stack Development  
-- REST APIs  
-- Authentication  
-- Database Design  
-- AI Integration  
-- Backend Architecture  
-- Scalable System Design  
-
----
-
-## 👨‍💻 Author
-
-**Manish Kumar Yadav**  
-Electrical Engineering | NIT Jamshedpur  
-Aspiring Software Engineer
+Distributed under the MIT License. See `LICENSE` for more information.
