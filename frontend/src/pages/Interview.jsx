@@ -142,6 +142,7 @@ const Interview = () => {
             isSubmitting={isSubmitting}
             questionIndex={currentIndex}
             disabled={submitted}
+            initialAnswer={currentAnswer}
           />
         </Card>
 
