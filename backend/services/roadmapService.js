@@ -31,7 +31,7 @@ const roadmapService = {
 // ── Step 4: Call AI ──────────────────────────────────────────────────────
 let rawResponse;
 
-if (env.USE_AI_MOCK === 'true') {
+if (env.USE_AI_MOCK) {
   const weakNames   = (topics?.weak  || []).map(t => t.topic);
   const primaryWeak = weakNames[0] || 'Algorithms';
   const secondWeak  = weakNames[1] || 'System Design';

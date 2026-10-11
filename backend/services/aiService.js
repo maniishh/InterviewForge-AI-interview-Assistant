@@ -93,98 +93,122 @@ class AIService {
 
 // backend/services/aiService.js — replace generateQuestions method
 
-async generateQuestions({ company, jobRole, difficulty, count = 5 }) {
+  async generateQuestions({ company, jobRole, difficulty, count = 5 }) {
+    // MOCK MODE
+    if (env.USE_AI_MOCK) {
+      console.log('ℹ️   Using AI Mock questions (USE_AI_MOCK is active)');
+      return [
+        { text: `At ${company}, how would you design a distributed cache?`, type: 'system-design', category: 'Scalability',     orderIndex: 0 },
+        { text: 'Explain HashMap vs TreeMap. When would you use each?',     type: 'technical',     category: 'Data Structures', orderIndex: 1 },
+        { text: 'Tell me about a time you had to meet a tight deadline.',    type: 'behavioral',    category: 'Leadership',      orderIndex: 2 },
+        { text: `Design a real-time notification system for ${company}.`,   type: 'system-design', category: 'System Design',   orderIndex: 3 },
+        { text: 'What is the time complexity of quicksort?',                type: 'technical',     category: 'Algorithms',      orderIndex: 4 },
+      ].slice(0, count);
+    }
 
-  // MOCK MODE
-  if (env.USE_AI_MOCK === 'true') {
-    return [
-      { text: `At ${company}, how would you design a distributed cache?`, type: 'system-design', category: 'Scalability',     orderIndex: 0 },
-      { text: 'Explain HashMap vs TreeMap. When would you use each?',     type: 'technical',     category: 'Data Structures', orderIndex: 1 },
-      { text: 'Tell me about a time you had to meet a tight deadline.',    type: 'behavioral',    category: 'Leadership',      orderIndex: 2 },
-      { text: `Design a real-time notification system for ${company}.`,   type: 'system-design', category: 'System Design',   orderIndex: 3 },
-      { text: 'What is the time complexity of quicksort?',                type: 'technical',     category: 'Algorithms',      orderIndex: 4 },
-    ].slice(0, count);
-  }
+    // RAG MODE — retrieve real company questions as context
+    let ragContext = '';
+    if (env.USE_RAG) {
+      try {
+        console.log(`🔍  RAG: retrieving context for ${company} ${difficulty}...`);
+        const ragService    = require('../rag/ragService');
+        const retrieved     = await ragService.retrieveContext({
+          company, role: jobRole, difficulty, count: 10,
+        });
 
-  // RAG MODE — retrieve real company questions as context
-  let ragContext = '';
-  if (env.USE_RAG === 'true') {
-    try {
-      console.log(`🔍  RAG: retrieving context for ${company} ${difficulty}...`);
-      const ragService    = require('../rag/ragService');
-      const retrieved     = await ragService.retrieveContext({
-        company, role: jobRole, difficulty, count: 10,
-      });
-
-      if (retrieved.length > 0) {
-        ragContext = ragService.buildContextString(retrieved);
-        console.log(`✅  RAG: retrieved ${retrieved.length} relevant questions`);
-      } else {
-        console.log(`ℹ️   RAG: no matches found — using pure AI generation`);
+        if (retrieved.length > 0) {
+          ragContext = ragService.buildContextString(retrieved);
+          console.log(`✅  RAG: retrieved ${retrieved.length} relevant questions`);
+        } else {
+          console.log(`ℹ️   RAG: no matches found — using pure AI generation`);
+        }
+      } catch (ragError) {
+        console.warn(`⚠️   RAG failed: ${ragError.message} — continuing without context`);
       }
-    } catch (ragError) {
-      // RAG failure is non-fatal — fall back to pure AI generation
-      console.warn(`⚠️   RAG failed: ${ragError.message} — continuing without context`);
+    }
+
+    const messages = promptBuilder.buildQuestionsPrompt({
+      company, jobRole, difficulty, count,
+      ragContext,
+    });
+
+    try {
+      const raw = await this.call(messages, { temperature: 0.7, max_tokens: 3000 });
+      return responseParser.parseQuestions(raw);
+    } catch (err) {
+      console.warn(`⚠️  AI generation failed (${err.message}). Falling back to curated mock questions.`);
+      return [
+        { text: `At ${company}, how would you design a distributed cache?`, type: 'system-design', category: 'Scalability',     orderIndex: 0 },
+        { text: 'Explain HashMap vs TreeMap. When would you use each?',     type: 'technical',     category: 'Data Structures', orderIndex: 1 },
+        { text: 'Tell me about a time you had to meet a tight deadline.',    type: 'behavioral',    category: 'Leadership',      orderIndex: 2 },
+        { text: `Design a real-time notification system for ${company}.`,   type: 'system-design', category: 'System Design',   orderIndex: 3 },
+        { text: 'What is the time complexity of quicksort?',                type: 'technical',     category: 'Algorithms',      orderIndex: 4 },
+      ].slice(0, count);
     }
   }
 
- 
-  const messages = promptBuilder.buildQuestionsPrompt({
-    company, jobRole, difficulty, count,
-    ragContext,   // ← pass context to prompt builder
-  });
-
-  const raw = await this.call(messages, { temperature: 0.8, max_tokens: 2000 });
-  return responseParser.parseQuestions(raw);
-}
- 
-async evaluateAnswer({
-  question,
-  answer,
-  company,
-  jobRole,
-}) {
-  
-  let referenceContext = '';
-  if (env.USE_RAG === 'true') {
-    try {
-      console.log(`🔍  RAG: retrieving evaluation context for ${company}...`);
-      const ragService = require('../rag/ragService');
-      const retrieved = await ragService.retrieveContext({
-        company,
-        role: jobRole,
-        type: question.type,
-        count: 2,
-        queryOverride: question.text,
-      });
-
-      if (retrieved.length > 0) {
-        referenceContext = retrieved.map(q => 
-          `Question: ${q.questionText}\nReference Answer: ${q.sampleAnswer}`
-        ).join('\n\n');
-        console.log(`✅  RAG: retrieved ${retrieved.length} relevant context(s) for evaluation`);
-      } else {
-        console.log(`ℹ️   RAG: no matches found — falling back to general evaluation`);
-      }
-    } catch (ragError) {
-      console.warn(`⚠️   RAG evaluation failed: ${ragError.message} — continuing without context`);
-    }
-  }
-
-  const messages = promptBuilder.buildEvaluationPrompt({
+  async evaluateAnswer({
     question,
     answer,
     company,
     jobRole,
-    referenceContext,
-  });
- 
-  const raw = await this.call(messages, {
-    temperature: 0.2,
-    max_tokens: 2000,
-  });
-  return responseParser.parseEvaluation(raw);
-}
+  }) {
+    // MOCK MODE
+    if (env.USE_AI_MOCK) {
+      console.log('ℹ️   Using AI Mock evaluation (USE_AI_MOCK is active)');
+      return {
+        technicalScore: 8,
+        communicationScore: 8,
+        depthScore: 7.5,
+        overallScore: 7.8,
+        feedback: `Solid answer demonstrating a strong grasp of the core concepts for this ${question.type || 'technical'} question.`,
+        strengths: 'Clear explanation, structured communication, and accurate technical terminology.',
+        improvements: 'Consider highlighting trade-offs, potential edge cases, and real-world production constraints.',
+        suggestedAnswer: `A comprehensive answer at ${company} would start with the direct solution, discuss edge cases, and analyze time/space complexity trade-offs.`,
+        evaluatedAt: new Date(),
+      };
+    }
+
+    let referenceContext = '';
+    if (env.USE_RAG) {
+      try {
+        console.log(`🔍  RAG: retrieving evaluation context for ${company}...`);
+        const ragService = require('../rag/ragService');
+        const retrieved = await ragService.retrieveContext({
+          company,
+          role: jobRole,
+          type: question.type,
+          count: 2,
+          queryOverride: question.text,
+        });
+
+        if (retrieved.length > 0) {
+          referenceContext = retrieved.map(q => 
+            `Question: ${q.questionText}\nReference Answer: ${q.sampleAnswer}`
+          ).join('\n\n');
+          console.log(`✅  RAG: retrieved ${retrieved.length} relevant context(s) for evaluation`);
+        } else {
+          console.log(`ℹ️   RAG: no matches found — falling back to general evaluation`);
+        }
+      } catch (ragError) {
+        console.warn(`⚠️   RAG evaluation failed: ${ragError.message} — continuing without context`);
+      }
+    }
+
+    const messages = promptBuilder.buildEvaluationPrompt({
+      question,
+      answer,
+      company,
+      jobRole,
+      referenceContext,
+    });
+
+    const raw = await this.call(messages, {
+      temperature: 0.2,
+      max_tokens: 2000,
+    });
+    return responseParser.parseEvaluation(raw);
+  }
 }
 
 module.exports = new AIService();

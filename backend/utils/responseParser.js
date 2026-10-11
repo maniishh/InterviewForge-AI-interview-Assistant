@@ -12,16 +12,34 @@ const responseParser = {
 
     text = text
       .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '');
+      .replace(/\s*```\s*$/i, '')
+      .trim();
 
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
+    // Fast path: try parsing directly
+    try {
+      return JSON.parse(text);
+    } catch (_) {}
 
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw AppError.internal('AI response did not contain a valid JSON object');
+    // Identify whether the JSON root is an Object or an Array
+    const firstObj = text.indexOf('{');
+    const firstArr = text.indexOf('[');
+
+    let start = -1;
+    let end = -1;
+
+    if (firstObj !== -1 && (firstArr === -1 || firstObj < firstArr)) {
+      start = firstObj;
+      end = text.lastIndexOf('}');
+    } else if (firstArr !== -1) {
+      start = firstArr;
+      end = text.lastIndexOf(']');
     }
 
-    text = text.slice(firstBrace, lastBrace + 1);
+    if (start === -1 || end === -1 || end < start) {
+      throw AppError.internal('AI response did not contain a valid JSON object or array');
+    }
+
+    text = text.slice(start, end + 1);
 
     try {
       return JSON.parse(text);
@@ -113,6 +131,16 @@ parseEvaluation(rawText) {
     ),
     evaluatedAt: new Date(),
   };
+},
+
+_safeString(val, fallback = '') {
+  if (typeof val === 'string' && val.trim().length > 0) {
+    return val.trim();
+  }
+  if (Array.isArray(val)) {
+    return val.join('\n');
+  }
+  return fallback;
 },
 };
 

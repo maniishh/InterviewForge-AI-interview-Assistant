@@ -41,13 +41,13 @@ const env = {
  
 PINECONE_API_KEY:   getEnv('PINECONE_API_KEY',   { required: false, defaultValue: '' }),
 PINECONE_INDEX_NAME:getEnv('PINECONE_INDEX_NAME', { required: false, defaultValue: 'interviewforge-questions' }),
-USE_RAG:            getEnv('USE_RAG',             { required: false, defaultValue: 'false' }),
+  USE_RAG:            String(getEnv('USE_RAG',             { required: false, defaultValue: 'false' })).trim().toLowerCase() === 'true',
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: Number(getEnv('RATE_LIMIT_WINDOW_MS', { defaultValue: '900000' })),
   RATE_LIMIT_MAX:       Number(getEnv('RATE_LIMIT_MAX',        { defaultValue: '100'    })),
 
-  USE_AI_MOCK: getEnv('USE_AI_MOCK', { required: false, defaultValue: 'false' }),
+  USE_AI_MOCK: String(getEnv('USE_AI_MOCK', { required: false, defaultValue: 'false' })).trim().toLowerCase() === 'true',
 };
 
 

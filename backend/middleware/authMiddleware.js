@@ -5,16 +5,12 @@ const User = require('../models/User');
 const env = require('../config/env');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
+const { getAuthToken } = require('../utils/authCookie');
 
 const protect = asyncHandler(async (req, res, next) => {
   let token;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer ')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  }
+  token = getAuthToken(req);
 
   if (!token) {
     throw AppError.unauthorized(

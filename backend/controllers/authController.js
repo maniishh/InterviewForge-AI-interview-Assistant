@@ -4,15 +4,16 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../utils/AppError');
+const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
 
 const sendTokenResponse = (user, statusCode, res) => {
   const token = generateToken(user._id);
+  setAuthCookie(res, token);
 
   res.status(statusCode).json({
     success: true,
     data: {
       user: user.toJSON(),
-      token,
     },
     message:
       statusCode === 201
@@ -20,6 +21,11 @@ const sendTokenResponse = (user, statusCode, res) => {
         : 'Logged in successfully',
   });
 };
+
+exports.logout = asyncHandler(async (req, res) => {
+  clearAuthCookie(res);
+  res.status(204).send();
+});
 
 exports.register = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body;

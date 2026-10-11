@@ -32,28 +32,21 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token     = localStorage.getItem('token');
       const savedUser = localStorage.getItem('user');
-
-      if (!token) {
-        dispatch({ type: 'AUTH_INIT' });
-        return;
-      }
 
       try {
         if (savedUser) {
           dispatch({
             type: 'LOGIN_SUCCESS',
-            payload: { user: JSON.parse(savedUser), token },
+            payload: { user: JSON.parse(savedUser) },
           });
         }
         const { data } = await api.get('/auth/me');
         dispatch({
           type: 'LOGIN_SUCCESS',
-          payload: { user: data.data.user, token },
+          payload: { user: data.data.user },
         });
       } catch {
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
         dispatch({ type: 'AUTH_INIT' });
       }
@@ -64,24 +57,22 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    const { user, token } = data.data;
-    localStorage.setItem('token', token);
+    const { user } = data.data;
     localStorage.setItem('user', JSON.stringify(user));
-    dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
     navigate('/setup');
   }, [navigate]);
 
   const register = useCallback(async (name, email, password, confirmPassword) => {
     const { data } = await api.post('/auth/register', { name, email, password, confirmPassword });
-    const { user, token } = data.data;
-    localStorage.setItem('token', token);
+    const { user } = data.data;
     localStorage.setItem('user', JSON.stringify(user));
-    dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
     navigate('/setup');
   }, [navigate]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
+  const logout = useCallback(async () => {
+    await api.post('/auth/logout').catch(() => undefined);
     localStorage.removeItem('user');
     dispatch({ type: 'LOGOUT' });
     navigate('/login');
