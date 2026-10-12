@@ -13,7 +13,7 @@ const initialState = {
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'AUTH_INIT':
-      return { ...state, isLoading: false };
+      return { ...initialState, isLoading: false };
     case 'LOGIN_SUCCESS':
       return { ...state, user: action.payload.user, token: action.payload.token, isAuthenticated: true, isLoading: false };
     case 'LOGOUT':

@@ -29,19 +29,19 @@ connectDB();
  
 app.use(helmet());
 
-const allowedOrigins = Array.from(new Set([
+const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://localhost:3000',
   env.CLIENT_URL,
-].filter(Boolean)));
+].filter(Boolean));
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS error: Origin ${origin} not allowed`));
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
     }
+
+    return callback(new Error(`CORS error: Origin ${origin} not allowed`));
   },
   credentials: true,
 }));
